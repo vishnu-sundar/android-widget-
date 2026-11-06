@@ -69,5 +69,4 @@ jobs:
         with:
           name: android-device-evidence
           path: |
-            evidence/*.png
-            app/build/reports/androidTests/connected/
+            evidence/
