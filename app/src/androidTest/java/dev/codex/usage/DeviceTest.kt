@@ -92,7 +92,7 @@ class DeviceTest {
                     updateWidgets(app)
                     app.repository.import("""{"source":"codex-app-server","fetchedAt":100,"limits":[]}""")
                 }
-                awaitText("Imported snapshot")
+                awaitText("Imported")
                 assertEquals("light", runBlocking { app.repository.store.settings.first().theme })
             } finally {
                 scenario.onActivity { host.stopListening(); host.deleteHost() }

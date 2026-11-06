@@ -72,6 +72,28 @@ private fun WidgetBody(state: StoredState, settings: Settings) {
     val fg = if (dark) Color(0xFFE5F2F1) else Color(0xFF10251F)
     val muted = if (dark) Color(0xFF9BAFB9) else Color(0xFF50656D)
     val snapshot = state.snapshot
+    if (!medium) {
+        val reading = snapshot?.fiveHour
+        val source = when {
+            state.imported -> "Imported"
+            dataStatus(state, settings.interval) == "Cached data" -> "Cached"
+            else -> "Updated"
+        }
+        val stamp = snapshot?.fetchedAt?.let {
+            java.time.format.DateTimeFormatter.ofPattern("d MMM HH:mm")
+                .withZone(java.time.ZoneId.systemDefault()).format(java.time.Instant.ofEpochSecond(it))
+        }
+        Column(GlanceModifier.fillMaxSize().background(if (dark) Color(0xFF111B24) else Color(0xFFF0F7F3))
+            .cornerRadius(16.dp).clickable(actionStartActivity<MainActivity>()).padding(7.dp)) {
+            Text("‹/› Codex", style = TextStyle(color = ColorProvider(fg), fontSize = 13.sp, fontWeight = FontWeight.Bold))
+            Text(reading?.percentText ?: "—", style = TextStyle(color = ColorProvider(tint(reading)), fontSize = 23.sp, fontWeight = FontWeight.Bold), maxLines = 1)
+            Text("5-hour remaining", style = TextStyle(color = ColorProvider(fg), fontSize = 10.sp), maxLines = 1)
+            Text(countdown(reading?.resetsAt), style = TextStyle(color = ColorProvider(muted), fontSize = 10.sp), maxLines = 1)
+            Spacer(GlanceModifier.defaultWeight())
+            Text(stamp?.let { "$source $it" } ?: "Connect in app", style = TextStyle(color = ColorProvider(muted), fontSize = 9.sp), maxLines = 1)
+        }
+        return
+    }
     Column(GlanceModifier.fillMaxSize().background(if (dark) Color(0xFF111B24) else Color(0xFFF0F7F3))
         .cornerRadius(22.dp).clickable(actionStartActivity<MainActivity>()).padding(14.dp)) {
         Row(GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -87,17 +109,12 @@ private fun WidgetBody(state: StoredState, settings: Settings) {
                 val extras = snapshot?.limits.orEmpty().filter { it.id != snapshot?.fiveHour?.id && it.id != snapshot?.weekly?.id }
                 items(extras) { WidgetLimit(it.name, it, fg, muted, true) }
             }
-        } else if (medium) {
+        } else {
             Row(GlanceModifier.fillMaxWidth().defaultWeight()) {
                 Column(GlanceModifier.defaultWeight()) { WidgetLimit("5-hour", snapshot?.fiveHour, fg, muted, false) }
                 Spacer(GlanceModifier.width(14.dp))
                 Column(GlanceModifier.defaultWeight()) { WidgetLimit("Weekly", snapshot?.weekly, fg, muted, false) }
             }
-        } else {
-            Text(snapshot?.fiveHour?.percentText ?: "—", style = TextStyle(color = ColorProvider(tint(snapshot?.fiveHour)), fontSize = 30.sp, fontWeight = FontWeight.Bold))
-            Text("5-hour remaining", style = TextStyle(color = ColorProvider(fg), fontSize = 11.sp))
-            Text(countdown(snapshot?.fiveHour?.resetsAt), style = TextStyle(color = ColorProvider(muted), fontSize = 11.sp))
-            Spacer(GlanceModifier.defaultWeight())
         }
         Spacer(GlanceModifier.height(4.dp))
         Text("${dataStatus(state, settings.interval)} · ${snapshot?.fetchedAt?.let { localTime(it) } ?: "Connect in app"}",
