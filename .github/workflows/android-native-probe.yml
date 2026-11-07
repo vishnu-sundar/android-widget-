@@ -2,6 +2,7 @@ name: Android native Codex probe
 on:
   push:
     branches: [test/android-app-server]
+    paths: ['.github/workflows/android-native-probe.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -48,6 +49,10 @@ jobs:
             python3 -m json.tool evidence/codex-probe.json
             adb logcat -d -b crash > evidence/native-crash.txt
             cat evidence/native-crash.txt
+            adb root
+            adb wait-for-device
+            adb shell dmesg > evidence/kernel.txt
+            grep -Ei 'seccomp|audit.*syscall|libcodex' evidence/kernel.txt || true
             python3 -c 'import json; d=json.load(open("evidence/codex-probe.json")); assert d.get("initializeSucceeded"), "Native Codex app-server failed to initialize"'
 
       - uses: actions/upload-artifact@v4
