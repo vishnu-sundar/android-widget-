@@ -1,0 +1,53 @@
+name: Android native Codex probe
+on:
+  push:
+    branches: [test/android-app-server]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Fetch pinned official Codex binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/codex-official app/src/main/jniLibs/x86_64 evidence
+          curl --fail --location --retry 3 'https://github.com/openai/codex/releases/download/rust-v0.167.0/codex-x86_64-unknown-linux-musl.tar.gz' -o /tmp/codex.tar.gz
+          echo '9d64836106d5b374e90ee4454c7ebcde7ca7106558bd7e41a34b9f26ebda251a  /tmp/codex.tar.gz' | sha256sum --check
+          tar -xzf /tmp/codex.tar.gz -C /tmp/codex-official
+          find /tmp/codex-official -maxdepth 2 -type f -name 'codex*' -print
+          binary="$(find /tmp/codex-official -maxdepth 2 -type f -name 'codex*' | head -1)"
+          test -n "$binary"
+          file "$binary" | tee evidence/binary.txt
+          cp "$binary" app/src/main/jniLibs/x86_64/libcodex.so
+          chmod 755 app/src/main/jniLibs/x86_64/libcodex.so
+      - name: Build probe APKs
+        run: ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest --max-workers=2
+      - name: Enable emulator acceleration
+        run: sudo chmod 666 /dev/kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          script: |
+            adb install -r app/build/outputs/apk/debug/app-debug.apk
+            adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+            adb shell am instrument -w -r -e class dev.codex.usage.NativeCodexProbe dev.codex.usage.test/androidx.test.runner.AndroidJUnitRunner | tee evidence/instrumentation.txt
+            adb exec-out run-as dev.codex.usage cat files/codex-probe.json > evidence/codex-probe.json
+            python3 -m json.tool evidence/codex-probe.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-codex-probe
+          path: evidence/
