@@ -26,6 +26,9 @@ jobs:
           test -d "$ndk"
           compiler="$ndk/toolchains/llvm/prebuilt/linux-x86_64/bin"
           echo "$compiler" >> "$GITHUB_PATH"
+          echo "ANDROID_NDK_ROOT=$ndk" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_HOME=$ndk" >> "$GITHUB_ENV"
+          echo "OPENSSL_STATIC=1" >> "$GITHUB_ENV"
           echo "CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER=$compiler/x86_64-linux-android26-clang" >> "$GITHUB_ENV"
           echo "CC_x86_64_linux_android=$compiler/x86_64-linux-android26-clang" >> "$GITHUB_ENV"
           echo "CXX_x86_64_linux_android=$compiler/x86_64-linux-android26-clang++" >> "$GITHUB_ENV"
@@ -46,7 +49,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          trap 'git diff -- Cargo.lock > ../../evidence/android-lock.diff' EXIT
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app-server/Cargo.toml")
+          p.write_text(p.read_text().replace("[dependencies]\n", '[dependencies]\nopenssl = { version = "0.10", features = ["vendored"] }\n', 1))
+          PY
+          trap 'git diff -- Cargo.lock app-server/Cargo.toml > ../../evidence/android-build.diff' EXIT
           cargo +1.95.0 build --release --target x86_64-linux-android -p codex-app-server --bin codex-app-server 2>&1 | tee ../../evidence/ndk-build.txt
           mkdir -p ../../app/src/main/jniLibs/x86_64
           cp target/x86_64-linux-android/release/codex-app-server ../../app/src/main/jniLibs/x86_64/libcodex.so
