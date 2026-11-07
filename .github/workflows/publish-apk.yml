@@ -1,0 +1,49 @@
+name: Publish downloadable APK
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/publish-apk.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Verify tested build
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "repos/$GH_REPO/actions/runs/42292109446" > "$RUNNER_TEMP/build.json"
+          jq -e '.conclusion == "success" and .head_sha == "80a8534b6126d548545122cd87132994a572484b"' "$RUNNER_TEMP/build.json"
+      - name: Download existing APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p apk
+          gh run download 42292109446 --name codex-usage-debug --dir apk
+          test -s apk/app-debug.apk
+          mv apk/app-debug.apk apk/codex-usage-widget.apk
+          cd apk
+          sha256sum codex-usage-widget.apk > SHA256SUMS.txt
+      - name: Publish APK release
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/release-notes.md" <<'NOTES'
+          Install the attached codex-usage-widget.apk on Android 8.0 or newer.
+
+          This is the debug APK from the successful build and Android 15 emulator tests in run 42292109446, source commit 80a8534b6126d548545122cd87132994a572484b.
+
+          Live usage requires the included desktop bridge and private HTTPS pairing. Setup instructions are in the repository README. Personal-account live sync remains to be verified after pairing.
+          NOTES
+          gh release create android-debug-0.1.0 \
+            apk/codex-usage-widget.apk apk/SHA256SUMS.txt \
+            --target 80a8534b6126d548545122cd87132994a572484b \
+            --title "Codex Usage Widget 0.1.0 (debug APK)" \
+            --prerelease --notes-file "$RUNNER_TEMP/release-notes.md"
