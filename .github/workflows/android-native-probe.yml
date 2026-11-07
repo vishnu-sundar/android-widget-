@@ -46,6 +46,10 @@ jobs:
             adb shell am instrument -w -r -e class dev.codex.usage.NativeCodexProbe dev.codex.usage.test/androidx.test.runner.AndroidJUnitRunner | tee evidence/instrumentation.txt
             adb exec-out run-as dev.codex.usage cat files/codex-probe.json > evidence/codex-probe.json
             python3 -m json.tool evidence/codex-probe.json
+            adb logcat -d -b crash > evidence/native-crash.txt
+            cat evidence/native-crash.txt
+            python3 -c 'import json; d=json.load(open("evidence/codex-probe.json")); assert d.get("initializeSucceeded"), "Native Codex app-server failed to initialize"'
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:
