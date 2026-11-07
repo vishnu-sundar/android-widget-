@@ -35,16 +35,19 @@ jobs:
         with:
           workspaces: codex-source/codex-rs
           key: android-x86_64-ndk
+          cache-on-failure: true
       - name: Compile official app-server for Android
         working-directory: codex-source/codex-rs
         env:
           CARGO_PROFILE_RELEASE_LTO: 'false'
           CARGO_PROFILE_RELEASE_DEBUG: '0'
+          CARGO_PROFILE_RELEASE_OPT_LEVEL: '0'
           CARGO_BUILD_JOBS: '2'
         shell: bash
         run: |
           set -euo pipefail
-          cargo +1.95.0 build --locked --release --target x86_64-linux-android -p codex-app-server --bin codex-app-server 2>&1 | tee ../../evidence/ndk-build.txt
+          trap 'git diff -- Cargo.lock > ../../evidence/android-lock.diff' EXIT
+          cargo +1.95.0 build --release --target x86_64-linux-android -p codex-app-server --bin codex-app-server 2>&1 | tee ../../evidence/ndk-build.txt
           mkdir -p ../../app/src/main/jniLibs/x86_64
           cp target/x86_64-linux-android/release/codex-app-server ../../app/src/main/jniLibs/x86_64/libcodex.so
           chmod 755 ../../app/src/main/jniLibs/x86_64/libcodex.so
